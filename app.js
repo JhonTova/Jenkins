@@ -5,7 +5,6 @@ const dbConfig = require('./database/config');
 const app = express();
 app.use(express.json());
 
-// Crear conexión a la base de datos
 let connection;
 
 async function initDB() {
@@ -13,7 +12,6 @@ async function initDB() {
     console.log('Conectado a MySQL');
 }
 
-// Endpoint para crear un registro
 app.post('/api/data', async (req, res) => {
     try {
         const { name, value } = req.body;
@@ -33,7 +31,6 @@ app.post('/api/data', async (req, res) => {
     }
 });
 
-// Endpoint para obtener todos los registros
 app.get('/api/data', async (req, res) => {
     try {
         const [rows] = await connection.execute('SELECT * FROM records');
@@ -44,7 +41,6 @@ app.get('/api/data', async (req, res) => {
     }
 });
 
-// Iniciar servidor
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
     app.listen(PORT, () => {
