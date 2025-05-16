@@ -5,6 +5,7 @@ pipeline {
 
     environment {
         PORT = '3000'
+        NODE_VERSION = '18.x' // Versión de Node.js a instalar
     }
 
     stages {
@@ -12,6 +13,29 @@ pipeline {
             steps {
                 git branch: 'main', 
                 url: 'https://github.com/JhonTova/Jenkins.git'
+            }
+        }
+
+        stage('Instalar Node.js') {
+            steps {
+                script {
+                    // Verificar si Node.js ya está instalado
+                    try {
+                        sh 'node --version'
+                        echo '✅ Node.js ya está instalado'
+                    } catch (Exception e) {
+                        echo 'Instalando Node.js...'
+                        sh """
+                            # Instalar Node.js y npm
+                            curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION} | sudo -E bash -
+                            sudo apt-get install -y nodejs
+                            
+                            # Verificar instalación
+                            node --version
+                            npm --version
+                        """
+                    }
+                }
             }
         }
 
@@ -23,29 +47,32 @@ pipeline {
 
         stage('Iniciar base de datos') {
             steps {
-                // Asumiendo que tienes MySQL Workbench local configurado
-                sh 'mysql -u root -p < database/init.sql || true'
+                // Verificar si MySQL está instalado
+                sh 'mysql --version || echo "MySQL no está instalado"'
+                
+                // Ejecutar script SQL (asumiendo credenciales por defecto)
+                sh 'mysql -u root -p < database/init.sql || echo "Error al ejecutar script SQL"'
             }
         }
 
         stage('Ejecutar aplicación') {
             steps {
-                sh 'npm start &'
+                sh 'nohup npm start &' // Usar nohup para evitar que se detenga
+                sh 'sleep 5' // Esperar que la aplicación se inicie
             }
         }
 
         stage('Verificar') {
             steps {
-                // Esperar un poco para que la aplicación se inicie
-                sleep time: 5, unit: 'SECONDS'
-                
                 // Hacer una prueba de conexión
                 sh '''
+                    echo "Probando endpoint POST..."
                     curl -X POST http://localhost:3000/api/data \
                     -H "Content-Type: application/json" \
-                    -d \'{"name":"test","value":"123"}\' || true
+                    -d \'{"name":"test","value":"123"}\' || echo "Error en POST"
                     
-                    curl http://localhost:3000/api/data || true
+                    echo "\nProbando endpoint GET..."
+                    curl http://localhost:3000/api/data || echo "Error en GET"
                 '''
             }
         }
@@ -54,8 +81,13 @@ pipeline {
     post {
         always {
             echo 'Pipeline completado - limpiando'
-            // Detener la aplicación si es necesario
-            sh 'pkill -f "node app.js" || true'
+            // Alternativa más compatible para detener la aplicación
+            sh '''
+                PID=$(ps aux | grep "node app.js" | grep -v grep | awk '{print $2}')
+                if [ ! -z "$PID" ]; then
+                    kill -9 $PID || true
+                fi
+            '''
         }
     }
 }
